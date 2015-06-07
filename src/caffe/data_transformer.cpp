@@ -116,14 +116,14 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
         if (do_mirror) {
           w_idx = width - 1 - w;
         }
-        if (rotation_direct == 1) {
+        if (rotate_direct == 1) {
           int temp = w_idx;
           w_idx = height - 1 - h_idx;
           h_idx = temp;
-        } else if (rotation_direct == 2) {
+        } else if (rotate_direct == 2) {
           w_idx = width - 1 - w_idx;
           h_idx = height - 1 - h_idx;
-        } else if (rotation_direct == 3) {
+        } else if (rotate_direct == 3) {
           int temp = h_idx;
           h_idx = width - 1 - w_idx;
           w_idx = temp;
