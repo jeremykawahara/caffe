@@ -49,6 +49,10 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   const bool has_uint8 = data.size() > 0;
   const bool has_mean_values = mean_values_.size() > 0;
 
+
+  //==============Customized transformation code================
+  const int rotate_direct = ( param_.rotate() )? Rand(4) : 0 ;
+
   CHECK_GT(datum_channels, 0);
   CHECK_GE(datum_height, crop_size);
   CHECK_GE(datum_width, crop_size);
@@ -74,6 +78,11 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   int height = datum_height;
   int width = datum_width;
 
+  //==============Customized transformation code================
+  if (param_.rotate()){
+    CHECK(height == width) << "Rotation could only serve squared size data input";
+  }
+
   int h_off = 0;
   int w_off = 0;
   if (crop_size) {
@@ -94,12 +103,33 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   for (int c = 0; c < datum_channels; ++c) {
     for (int h = 0; h < height; ++h) {
       for (int w = 0; w < width; ++w) {
+        // data_index = (c * datum_height + h_off + h) * datum_width + w_off + w;
+        // if (do_mirror) {
+        //   top_index = (c * height + h) * width + (width - 1 - w);
+        // } else {
+        //   top_index = (c * height + h) * width + w;
+        // }
+
         data_index = (c * datum_height + h_off + h) * datum_width + w_off + w;
+        int h_idx = h;
+        int w_idx = w;
         if (do_mirror) {
-          top_index = (c * height + h) * width + (width - 1 - w);
-        } else {
-          top_index = (c * height + h) * width + w;
+          w_idx = width - 1 - w;
         }
+        if (rotation_direct == 1) {
+          int temp = w_idx;
+          w_idx = height - 1 - h_idx;
+          h_idx = temp;
+        } else if (rotation_direct == 2) {
+          w_idx = width - 1 - w_idx;
+          h_idx = height - 1 - h_idx;
+        } else if (rotation_direct == 3) {
+          int temp = h_idx;
+          h_idx = width - 1 - w_idx;
+          w_idx = temp;
+        }
+        top_index = (c * height + h_idx) * width + w_idx;
+
         if (has_uint8) {
           datum_element =
             static_cast<Dtype>(static_cast<uint8_t>(data[data_index]));

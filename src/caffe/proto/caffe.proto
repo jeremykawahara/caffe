@@ -374,6 +374,12 @@ message TransformationParameter {
   optional bool force_color = 6 [default = false];
   // Force the decoded image to have 1 color channels.
   optional bool force_gray = 7 [default = false];
+
+  // Cutomized caffe version
+  optional bool multiscale = 10 [default = false];
+  // Enable real time rotation to input data, require input data shape as a square image patch
+  optional bool rotate = 11 [default = false];
+
 }
 
 // Message that stores parameters shared by loss layers
