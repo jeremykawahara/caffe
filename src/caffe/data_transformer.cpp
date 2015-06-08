@@ -29,7 +29,7 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param,
     CHECK(param_.has_mean_file() == false) <<
       "Cannot specify mean_file and mean_value at the same time";
     for (int c = 0; c < param_.mean_value_size(); ++c) {
-      mean_values_.push_back(parm_.mean_value(c));
+      mean_values_.push_back(param_.mean_value(c));
     }
   }
 

@@ -9,7 +9,7 @@
 
 //========================================================
 // Customized header includes
-#include "filter.hpp"
+#include "filler.hpp"
 
 namespace caffe {
 
@@ -150,7 +150,7 @@ class DataTransformer {
 
   //========================================================
   // Cutomized variable for relighting
-  vecotr<Dtype> eigen_values_;
+  vector<Dtype> eigen_values_;
   Blob<Dtype> eigen_vectors_;
   shared_ptr<Filler<Dtype> > relight_filler_;
   Blob<Dtype> relight_;

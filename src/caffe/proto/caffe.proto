@@ -384,7 +384,7 @@ message TransformationParameter {
   // the eigen values of the components, same as number of channels.
   repeated float eigen_value              = 11;
   repeated float eigen_vector_component   = 12;
-  optional FillerParameter relight_filter = 13;
+  optional FillerParameter relight_filler = 13;
 
 
 }
