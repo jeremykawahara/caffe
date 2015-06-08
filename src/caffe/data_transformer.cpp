@@ -29,8 +29,38 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param,
     CHECK(param_.has_mean_file() == false) <<
       "Cannot specify mean_file and mean_value at the same time";
     for (int c = 0; c < param_.mean_value_size(); ++c) {
-      mean_values_.push_back(param_.mean_value(c));
+      mean_values_.push_back(parm_.mean_value(c));
     }
+  }
+
+  // check if we want to use relight value
+  int eigen_val_size = param_.eigen_value_size();
+  if (eigen_val_size > 0) {
+    CHECK_GT(param_.eigen_vector_component_size(), 0) <<
+      "Must specify both eigen vectors and eigen values" <<
+      " to do re-lighting augmentation";
+    CHECK_EQ(param_.eigen_vector_component_size(),
+      eigen_val_size*eigen_val_size) <<
+      "Specify an eigen vector per channel, each vector of channel length";
+
+    for (int c = 0; c < eigen_val_size ; ++c) {
+      eigen_values_.push_back(param_.eigen_value(c));
+    }
+
+    CHECK_EQ(eigen_val_size*eigen_val_size,
+      param_.eigen_vector_component_size()) <<
+      "Eigen vectors should be "<< eigen_val_size
+      << "^2 matrix for eigen vectors of length " << eigen_val_size;
+
+    eigen_vectors_.Reshape(1, 1, eigen_val_size, eigen_val_size);
+    Dtype *eigen_vec_data = eigen_vectors_.mutable_cpu_data();
+    for (int i = 0; i < param_.eigen_vector_component_size(); ++i) {
+        eigen_vec_data[i] = param_.eigen_vector_component(i);
+    }
+
+    relight_filler_ =
+      shared_ptr<Filler<Dtype> > (GetFiller<Dtype>(param_.relight_filler()));
+    relight_.Reshape(1, 1, 1, eigen_val_size);
   }
 }
 
@@ -49,9 +79,11 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   const bool has_uint8 = data.size() > 0;
   const bool has_mean_values = mean_values_.size() > 0;
 
-
-  //==============Customized transformation code================
-  const int rotate_direct = ( param_.rotate() )? Rand(4) : 0 ;
+  //==========================================================================
+  // Customized transformation code
+  const bool has_rotate_param   = param_.rotate();
+  const int  rotate_direct      = has_rotate_param? Rand(4) : 0 ;
+  const bool has_eigen_values   = eigen_values_.size() > 0;
 
   CHECK_GT(datum_channels, 0);
   CHECK_GE(datum_height, crop_size);
@@ -75,11 +107,34 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     }
   }
 
-  int height = datum_height;
-  int width = datum_width;
+  //==========================================================================
+  // Generates a random offset in direction of PCA
+  // for each image for re-lighting augmentation.
+  if (phase_ == TRAIN && has_eigen_values) {
+    CHECK_EQ(datum_channels, eigen_values_.size()) <<
+      "Specify as many eigen values as channels: " << datum_channels;
+    CHECK_EQ(datum_channels*datum_channels, eigen_vectors_.count()) <<
+      "Eigen vectors should be "<< datum_channels << "^2 matrix, row first";
 
-  //==============Customized transformation code================
-  if (param_.rotate()){
+    Blob<Dtype> relight_alpha(1, 1, 1, datum_channels);
+    relight_filler_->Fill(&relight_alpha);
+
+    for (int c = 0; c < datum_channels ; ++c) {
+      relight_alpha.mutable_cpu_data()[c] *= eigen_values_[c];
+    }
+
+    relight_.Reshape(1, 1, 1, datum_channels);
+    caffe_cpu_gemv<Dtype>(CblasTrans, datum_channels,
+      datum_channels, (Dtype) 1, eigen_vectors_.cpu_data(),
+      relight_alpha.cpu_data(), (Dtype) 0, relight_.mutable_cpu_data());
+  }
+
+  int height = datum_height;
+  int width  = datum_width;
+
+  //==========================================================================
+  // Customized transformation code for rotation
+  if ( has_rotate_param ){
     CHECK(height == width) << "Rotation could only serve squared size data input";
   }
 
@@ -103,19 +158,15 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   for (int c = 0; c < datum_channels; ++c) {
     for (int h = 0; h < height; ++h) {
       for (int w = 0; w < width; ++w) {
-        // data_index = (c * datum_height + h_off + h) * datum_width + w_off + w;
-        // if (do_mirror) {
-        //   top_index = (c * height + h) * width + (width - 1 - w);
-        // } else {
-        //   top_index = (c * height + h) * width + w;
-        // }
-
+        // =======================================
+        // Cutomized rotation augmentation
         data_index = (c * datum_height + h_off + h) * datum_width + w_off + w;
         int h_idx = h;
         int w_idx = w;
         if (do_mirror) {
           w_idx = width - 1 - w;
         }
+
         if (rotate_direct == 1) {
           int temp = w_idx;
           w_idx = height - 1 - h_idx;
@@ -128,6 +179,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
           h_idx = width - 1 - w_idx;
           w_idx = temp;
         }
+
         top_index = (c * height + h_idx) * width + w_idx;
 
         if (has_uint8) {
@@ -147,6 +199,12 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
             transformed_data[top_index] = datum_element * scale;
           }
         }
+
+        //===============================================
+        // cutomized code for adding relight value
+        if (has_eigen_values) {
+          transformed_data[top_index] += relight_.cpu_data()[c];
+        }
       }
     }
   }
@@ -154,7 +212,8 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Blob<Dtype>* transformed_blob) {
+                                       Blob<Dtype>* transformed_blob) 
+{
   // If datum is encoded, decoded and transform the cv::image.
   if (datum.encoded()) {
     CHECK(!param_.force_color() && !param_.force_gray())
@@ -204,7 +263,8 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const vector<Datum> & datum_vector,
-                                       Blob<Dtype>* transformed_blob) {
+                                       Blob<Dtype>* transformed_blob) 
+{
   const int datum_num = datum_vector.size();
   const int num = transformed_blob->num();
   const int channels = transformed_blob->channels();
@@ -224,7 +284,8 @@ void DataTransformer<Dtype>::Transform(const vector<Datum> & datum_vector,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const vector<cv::Mat> & mat_vector,
-                                       Blob<Dtype>* transformed_blob) {
+                                       Blob<Dtype>* transformed_blob) 
+{
   const int mat_num = mat_vector.size();
   const int num = transformed_blob->num();
   const int channels = transformed_blob->channels();
@@ -268,6 +329,13 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
 
+  //==========================================================================
+  // Customized transformation code
+  const bool has_rotate_param   = param_.rotate();
+  const int  rotate_direct      = has_rotate_param? Rand(4) : 0 ;
+  const bool has_eigen_values   = eigen_values_.size() > 0;
+
+
   CHECK_GT(img_channels, 0);
   CHECK_GE(img_height, crop_size);
   CHECK_GE(img_width, crop_size);
@@ -288,6 +356,27 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
         mean_values_.push_back(mean_values_[0]);
       }
     }
+  }
+
+  // Generates a random offset in direction of PCA
+  // for each image for re-lighting augmentation.
+  if (phase_ == TRAIN && has_eigen_values) {
+    CHECK_EQ(img_channels, eigen_values_.size()) <<
+      "Specify as many eigen values as channels: " << img_channels;
+    CHECK_EQ(img_channels*img_channels, eigen_vectors_.count()) <<
+      "Eigen vectors should be "<< img_channels << "^2 matrix, row first";
+
+    Blob<Dtype> relight_alpha(1, 1, 1, img_channels);
+    relight_filler_->Fill(&relight_alpha);
+
+    for (int c = 0; c < img_channels ; ++c) {
+      relight_alpha.mutable_cpu_data()[c] *= eigen_values_[c];
+    }
+
+    relight_.Reshape(1, 1, 1, img_channels);
+    caffe_cpu_gemv<Dtype>(CblasTrans, img_channels,
+      img_channels, (Dtype) 1, eigen_vectors_.mutable_cpu_data(),
+      relight_alpha.cpu_data(), (Dtype) 0, relight_.mutable_cpu_data());
   }
 
   int h_off = 0;
@@ -320,12 +409,30 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
     int img_index = 0;
     for (int w = 0; w < width; ++w) {
       for (int c = 0; c < img_channels; ++c) {
+              
+        // =======================================
+        // Cutomized rotation augmentation
+        int h_idx = h;
+        int w_idx = w;
         if (do_mirror) {
-          top_index = (c * height + h) * width + (width - 1 - w);
-        } else {
-          top_index = (c * height + h) * width + w;
+          w_idx = width - 1 - w;
         }
-        // int top_index = (c * height + h) * width + w;
+
+        if (rotate_direct == 1) {
+          int temp = w_idx;
+          w_idx = height - 1 - h_idx;
+          h_idx = temp;
+        } else if (rotate_direct == 2) {
+          w_idx = width - 1 - w_idx;
+          h_idx = height - 1 - h_idx;
+        } else if (rotate_direct == 3) {
+          int temp = h_idx;
+          h_idx = width - 1 - w_idx;
+          w_idx = temp;
+        }
+
+        top_index = (c * height + h_idx) * width + w_idx;
+
         Dtype pixel = static_cast<Dtype>(ptr[img_index++]);
         if (has_mean_file) {
           int mean_index = (c * img_height + h_off + h) * img_width + w_off + w;
@@ -338,6 +445,12 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
           } else {
             transformed_data[top_index] = pixel * scale;
           }
+        }
+
+        //===============================================
+        // cutomized code for adding relight value
+        if (has_eigen_values) {
+          transformed_data[top_index] += relight_.cpu_data()[c];
         }
       }
     }
@@ -380,6 +493,13 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
   const bool do_mirror = param_.mirror() && Rand(2);
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
+
+  //==========================================================================
+  // Customized transformation code
+  // const bool has_rotate_param   = param_.rotate();
+  // const int  rotate_direct      = has_rotate_param? Rand(4) : 0 ;
+  const bool has_eigen_values   = eigen_values_.size() > 0;
+
 
   int h_off = 0;
   int w_off = 0;
@@ -427,6 +547,27 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
     }
   }
 
+  // Generates a random offset in direction of PCA
+  // for each image for re-lighting augmentation.
+  if (phase_ == TRAIN && has_eigen_values) {
+    CHECK_EQ(input_channels, eigen_values_.size()) <<
+      "Specify as many eigen values as channels: " << input_channels;
+    CHECK_EQ(input_channels*input_channels, eigen_vectors_.count()) <<
+      "Eigen vectors should be "<< input_channels << "^2 matrix, row first";
+
+    Blob<Dtype> relight_alpha(1, 1, 1, input_channels);
+    relight_filler_->Fill(&relight_alpha);
+
+    for (int c = 0; c < input_channels ; ++c) {
+      relight_alpha.mutable_cpu_data()[c] *= eigen_values_[c];
+    }
+
+    relight_.Reshape(1, 1, 1, input_channels);
+    caffe_cpu_gemv<Dtype>(CblasTrans, input_channels,
+      input_channels, (Dtype) 1, eigen_vectors_.cpu_data(),
+      relight_alpha.cpu_data(), (Dtype) 0, relight_.mutable_cpu_data());
+  }
+
   Dtype* transformed_data = transformed_blob->mutable_cpu_data();
 
   for (int n = 0; n < input_num; ++n) {
@@ -446,6 +587,14 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
         } else {
           for (int w = 0; w < width; ++w) {
             transformed_data[top_index_h + w] = input_data[data_index_h + w];
+          }
+        }
+
+        //===============================================
+        // cutomized code for adding relight value
+        if (has_eigen_values) {
+          for (int w = 0; w < width; ++w) {
+            transformed_data[top_index_h + w] += relight_.cpu_data()[c];
           }
         }
       }

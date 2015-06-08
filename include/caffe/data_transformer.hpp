@@ -7,6 +7,10 @@
 #include "caffe/common.hpp"
 #include "caffe/proto/caffe.pb.h"
 
+//========================================================
+// Customized header includes
+#include "filter.hpp"
+
 namespace caffe {
 
 /**
@@ -143,6 +147,13 @@ class DataTransformer {
   Phase phase_;
   Blob<Dtype> data_mean_;
   vector<Dtype> mean_values_;
+
+  //========================================================
+  // Cutomized variable for relighting
+  vecotr<Dtype> eigen_values_;
+  Blob<Dtype> eigen_vectors_;
+  shared_ptr<Filler<Dtype> > relight_filler_;
+  Blob<Dtype> relight_;
 };
 
 }  // namespace caffe
