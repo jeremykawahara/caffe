@@ -377,6 +377,7 @@ message TransformationParameter {
 
   // Cutomized caffe version
   // Enable real time rotation to input data, require input data shape as a square image patch
+  optional bool contrast_adjustment = 9 [default=false];
   optional bool rotate = 10 [default = false];
 
   // For relighting augmentation we need both the eigenvectors and eigenvalues.
@@ -385,8 +386,6 @@ message TransformationParameter {
   repeated float eigen_value              = 11;
   repeated float eigen_vector_component   = 12;
   optional FillerParameter relight_filler = 13;
-
-
 }
 
 // Message that stores parameters shared by loss layers

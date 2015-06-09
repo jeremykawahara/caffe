@@ -66,7 +66,8 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Dtype* transformed_data) {
+                                       Dtype* transformed_data) 
+{
   const string& data = datum.data();
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
@@ -84,6 +85,8 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   const bool has_rotate_param   = param_.rotate();
   const int  rotate_direct      = has_rotate_param? Rand(4) : 0 ;
   const bool has_eigen_values   = eigen_values_.size() > 0;
+  const bool has_contrast_adj   = param_.contrast_adjustment();
+  const float contrast_scale    = has_contrast_adj? Uniform(0.8, 1.2): 1;
 
   CHECK_GT(datum_channels, 0);
   CHECK_GE(datum_height, crop_size);
@@ -96,6 +99,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     CHECK_EQ(datum_width, data_mean_.width());
     mean = data_mean_.mutable_cpu_data();
   }
+
   if (has_mean_values) {
     CHECK(mean_values_.size() == 1 || mean_values_.size() == datum_channels) <<
      "Specify either 1 mean_value or as many as channels: " << datum_channels;
@@ -205,6 +209,10 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
         if (has_eigen_values) {
           transformed_data[top_index] += relight_.cpu_data()[c];
         }
+
+        if (has_contrast_adj) {
+          transformed_data[top_index] *= contrast_scale;
+        }
       }
     }
   }
@@ -305,7 +313,8 @@ void DataTransformer<Dtype>::Transform(const vector<cv::Mat> & mat_vector,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
-                                       Blob<Dtype>* transformed_blob) {
+                                       Blob<Dtype>* transformed_blob) 
+{
   const int crop_size = param_.crop_size();
   const int img_channels = cv_img.channels();
   const int img_height = cv_img.rows;
@@ -334,7 +343,14 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
   const bool has_rotate_param   = param_.rotate();
   const int  rotate_direct      = has_rotate_param? Rand(4) : 0 ;
   const bool has_eigen_values   = eigen_values_.size() > 0;
+  const bool has_contrast_adj   = param_.contrast_adjustment();
+  const float contrast_scale    = has_contrast_adj? Uniform(0.8, 1.2): 1;
 
+  //==========================================================================
+  // Customized transformation code for rotation
+  if ( has_rotate_param ){
+    CHECK(height == width) << "Rotation could only serve squared size data input";
+  }
 
   CHECK_GT(img_channels, 0);
   CHECK_GE(img_height, crop_size);
@@ -452,6 +468,9 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
         if (has_eigen_values) {
           transformed_data[top_index] += relight_.cpu_data()[c];
         }
+        if (has_contrast_adj) {
+          transformed_data[top_index] *= contrast_scale;
+        }
       }
     }
   }
@@ -459,7 +478,8 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
-                                       Blob<Dtype>* transformed_blob) {
+                                       Blob<Dtype>* transformed_blob) 
+{
   const int crop_size = param_.crop_size();
   const int input_num = input_blob->num();
   const int input_channels = input_blob->channels();
@@ -607,7 +627,8 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
 }
 
 template<typename Dtype>
-vector<int> DataTransformer<Dtype>::InferBlobShape(const Datum& datum) {
+vector<int> DataTransformer<Dtype>::InferBlobShape(const Datum& datum) 
+{
   if (datum.encoded()) {
     CHECK(!param_.force_color() && !param_.force_gray())
         << "cannot set both force_color and force_gray";
@@ -641,7 +662,8 @@ vector<int> DataTransformer<Dtype>::InferBlobShape(const Datum& datum) {
 
 template<typename Dtype>
 vector<int> DataTransformer<Dtype>::InferBlobShape(
-    const vector<Datum> & datum_vector) {
+    const vector<Datum> & datum_vector) 
+{
   const int num = datum_vector.size();
   CHECK_GT(num, 0) << "There is no datum to in the vector";
   // Use first datum in the vector to InferBlobShape.
@@ -652,7 +674,8 @@ vector<int> DataTransformer<Dtype>::InferBlobShape(
 }
 
 template<typename Dtype>
-vector<int> DataTransformer<Dtype>::InferBlobShape(const cv::Mat& cv_img) {
+vector<int> DataTransformer<Dtype>::InferBlobShape(const cv::Mat& cv_img) 
+{
   const int crop_size = param_.crop_size();
   const int img_channels = cv_img.channels();
   const int img_height = cv_img.rows;
@@ -672,7 +695,8 @@ vector<int> DataTransformer<Dtype>::InferBlobShape(const cv::Mat& cv_img) {
 
 template<typename Dtype>
 vector<int> DataTransformer<Dtype>::InferBlobShape(
-    const vector<cv::Mat> & mat_vector) {
+    const vector<cv::Mat> & mat_vector) 
+{
   const int num = mat_vector.size();
   CHECK_GT(num, 0) << "There is no cv_img to in the vector";
   // Use first cv_img in the vector to InferBlobShape.
@@ -683,7 +707,8 @@ vector<int> DataTransformer<Dtype>::InferBlobShape(
 }
 
 template <typename Dtype>
-void DataTransformer<Dtype>::InitRand() {
+void DataTransformer<Dtype>::InitRand() 
+{
   const bool needs_rand = param_.mirror() || param_.rotate() || 
       (phase_ == TRAIN && param_.crop_size());
   if (needs_rand) {
@@ -701,6 +726,13 @@ int DataTransformer<Dtype>::Rand(int n) {
   caffe::rng_t* rng =
       static_cast<caffe::rng_t*>(rng_->generator());
   return ((*rng)() % n);
+}
+template <typename Dtype>
+float DataTransformer<Dtype>::Uniform(const float min, const float max) {
+  CHECK(rng_);
+  Dtype d[1];
+  caffe_rng_uniform<Dtype>(1, Dtype(min), Dtype(max), d);
+  return (float) d[0];
 }
 
 INSTANTIATE_CLASS(DataTransformer);
