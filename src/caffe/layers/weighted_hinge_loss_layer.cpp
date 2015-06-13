@@ -27,7 +27,7 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
   for (int i = 0; i < num; ++i) {
     for (int j = 0; j < dim; ++j) {
       bottom_diff[i * dim + j] = std::max(
-        Dtype(0), 1 + bottom_diff[i * dim + j]) * (1 + std::pow(static_cast<int>(label[i]) - j, 2) );
+        Dtype(0), 1 + bottom_diff[i * dim + j]) * (1.0 + std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim, 2) );
     }
   }
   Dtype* loss = top[0]->mutable_cpu_data();
@@ -49,12 +49,13 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
     int dim = count / num;
 
     for (int i = 0; i < num; ++i) {
-      bottom_diff[i * dim + static_cast<int>(label[i])] *= -1;
-    }
-    for (int i = 0; i < num; ++i) {
       for (int j = 0; j < dim; ++j) {
-        bottom_diff[i * dim + j] *= (1 + std::pow(static_cast<int>(label[i]) - j, 2) );
+        bottom_diff[i * dim + j] *= (1 + std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim, 2) );
       }
+    }
+    
+    for (int i = 0; i < num; ++i) {
+      bottom_diff[i * dim + static_cast<int>(label[i])] *= -1;
     }
 
     const Dtype loss_weight = top[0]->cpu_diff()[0];

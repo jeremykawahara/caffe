@@ -394,7 +394,7 @@ class WeightedHingeLossLayer : public LossLayer<Dtype> {
   explicit WeightedHingeLossLayer(const LayerParameter& param)
       : LossLayer<Dtype>(param) {}
 
-  virtual inline const char* type() const { return "HingeLoss"; }
+  virtual inline const char* type() const { return "WeightedHingeLoss"; }
 
  protected:
   /// @copydoc HingeLossLayer
@@ -565,7 +565,7 @@ class MultinomialLogisticLossLayer : public LossLayer<Dtype> {
       const vector<Blob<Dtype>*>& top);
 
   virtual inline const char* type() const { return "MultinomialLogisticLoss"; }
-`
+
  protected:
   /// @copydoc MultinomialLogisticLossLayer
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
