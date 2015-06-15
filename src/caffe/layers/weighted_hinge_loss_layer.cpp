@@ -90,7 +90,6 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
 
     const Dtype loss_weight = top[0]->cpu_diff()[0];
   
-    // caffe_cpu_sign(count, bottom_diff, bottom_diff);
     caffe_scal(count, loss_weight / num, bottom_diff);
   }
 }
