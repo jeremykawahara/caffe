@@ -33,6 +33,7 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
       if( j == static_cast<int>(label[i]) ) continue;
       // Pairwise ranking weight
       Dtype weight = (std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim, 2) );
+      // Dtype weight = 1; 
       
       // Pairwise margin for each 
       Dtype margin = 1 + bottom_diff[i * dim + j] - correct_activation;
@@ -72,6 +73,8 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
         //==============================================================
         // Pairwise ranking weight
         Dtype weight = (std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim, 2) );
+        // Dtype weight = 1; 
+	      // LOG(INFO) << "weight on back propagate phase: " << weight << "\n";
 
         //==============================================================
         // Pairwise margin for each
@@ -79,8 +82,11 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
 
         if( margin > Dtype(0) )
         {
+	      // LOG(INFO) << "bottom_diff[" << (i * dim + j) << "] = "<< weight << "\n";
+	      // LOG(INFO) << "bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
+	      //	<< ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight) << "\n";
           bottom_diff[i * dim + j] = weight;
-          bottom_diff[i * dim + static_cast<int>(label[i])] -= weight;
+          bottom_diff[i * dim +  static_cast<int>(label[i])] -= weight;
         }
         else
           bottom_diff[i * dim + j] = Dtype(0);
@@ -89,7 +95,6 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
     }
 
     const Dtype loss_weight = top[0]->cpu_diff()[0];
-  
     caffe_scal(count, loss_weight / num, bottom_diff);
   }
 }
