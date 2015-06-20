@@ -63,7 +63,27 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
       // Pairwise margin for each 
       Dtype margin = 1.0 + bottom_diff[i * dim + j] - correct_activation;
 
-      bottom_diff[i * dim + j] = std::max(Dtype(0), margin) * weight;
+      switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
+        case WeightedHingeLossParameter_Norm_L1:{
+          bottom_diff[i * dim + j] = std::max(Dtype(0), margin) * weight;
+
+    #ifdef DEBUG 
+            LOG(INFO) << "L1_bottom_diff[" << i * dim + j << "] = " << bottom_diff[i * dim + j] << "\n";
+    #endif 
+
+          break;
+        }
+        case WeightedHingeLossParameter_Norm_L2:{
+          bottom_diff[i * dim + j] = std::pow(std::max(Dtype(0), margin),2) * weight;
+
+    #ifdef DEBUG 
+            LOG(INFO) << "L2_bottom_diff[" << i * dim + j << "] = " << bottom_diff[i * dim + j] << "\n";
+    #endif       
+          break;
+        }
+        default:
+          LOG(FATAL) << "Unknown Norm";
+      }
     }
   }
 
@@ -79,7 +99,7 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
       break;
     }
     case WeightedHingeLossParameter_Norm_L2:{
-      loss[0] = caffe_cpu_dot(count, bottom_diff, bottom_diff) / num;
+      loss[0] = caffe_cpu_asum(count, bottom_diff) / num;
 
 #ifdef DEBUG 
         LOG(INFO) << "L2_loss = " << loss[0] << "\n";
@@ -166,12 +186,12 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
             if( margin > Dtype(0) )
             {
 #ifdef DEBUG
-            LOG(INFO) << "L2_bottom_diff[" << (i * dim + j) << "] = "<< std::pow(weight, 2)*margin << "\n";
+            LOG(INFO) << "L2_bottom_diff[" << (i * dim + j) << "] = "<< weight*margin << "\n";
             LOG(INFO) << "L2_bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
-             << ( bottom_diff[i * dim +  static_cast<int>(label[i])] - std::pow(weight, 2)*margin) << "\n";
+             << ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight*margin) << "\n";
 #endif
-              bottom_diff[i * dim + j] = std::pow(weight, 2)*margin;
-              bottom_diff[i * dim +  static_cast<int>(label[i])] -= std::pow(weight, 2)*margin;
+              bottom_diff[i * dim + j] = 2 * weight * margin;
+              bottom_diff[i * dim +  static_cast<int>(label[i])] -= 2 * weight * margin;
             }
             else
               bottom_diff[i * dim + j] = Dtype(0);
@@ -195,7 +215,7 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
       case WeightedHingeLossParameter_Norm_L2:
       {
         const Dtype loss_weight = top[0]->cpu_diff()[0];
-        caffe_scal(count, loss_weight * 2 / num, bottom_diff);
+        caffe_scal(count, loss_weight / num, bottom_diff);
         break;
       }
     }
