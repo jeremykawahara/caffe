@@ -351,6 +351,9 @@ message LayerParameter {
   optional TanHParameter tanh_param = 127;
   optional ThresholdParameter threshold_param = 128;
   optional WindowDataParameter window_data_param = 129;
+
+  optional WeightedHingeLossParameter weighted_hinge_loss_param = 137;
+
 }
 
 // Message that stores parameters used to apply transformation
@@ -586,6 +589,23 @@ message HingeLossParameter {
   // Specify the Norm to use L1 or L2
   optional Norm norm = 1 [default = L1];
 }
+
+message WeightedHingeLossParameter {
+  enum Norm {
+    L1 = 1;
+    L2 = 2;
+  }
+
+  enum WeightType {
+    MULTICLASS = 1;
+    QUADRATIC  = 2;
+  }
+
+  // Specify the Norm to use L1 or L2
+  optional Norm       norm        = 1 [default = L1];
+  optional WeightType weight_type = 2 [default = MULTICLASS];
+}
+
 
 message ImageDataParameter {
   // Specify the data source.

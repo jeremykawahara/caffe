@@ -32,8 +32,18 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
     for (int j = 0; j < dim; ++j) {
       if( j == static_cast<int>(label[i]) ) continue;
       // Pairwise ranking weight
-      Dtype weight = (std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim, 2) );
-      // Dtype weight = 1; 
+
+      Dtype weight = 1;
+      switch (this->layer_param_.weighted_hinge_loss_param().weight_type()) {
+        case WeightedHingeLossParameter_WeightType_MULTICLASS:
+          weight = 1;
+          break;
+        case WeightedHingeLossParameter_WeightType_QUADRATIC:
+          weight = std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2);
+          break;
+        default:
+          LOG(FATAL) << "Unknown Weight";
+      }
       
       // Pairwise margin for each 
       Dtype margin = 1 + bottom_diff[i * dim + j] - correct_activation;
@@ -72,8 +82,17 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
         if( j == static_cast<int>(label[i]) ) continue;
         //==============================================================
         // Pairwise ranking weight
-        Dtype weight = (std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim, 2) );
-        // Dtype weight = 1; 
+        Dtype weight = 1;
+        switch (this->layer_param_.weighted_hinge_loss_param().weight_type()) {
+          case WeightedHingeLossParameter_WeightType_MULTICLASS:
+            weight = 1;
+            break;
+          case WeightedHingeLossParameter_WeightType_QUADRATIC:
+            weight = std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2);
+            break;
+          default:
+            LOG(FATAL) << "Unknown Weight";
+        }
 	      // LOG(INFO) << "weight on back propagate phase: " << weight << "\n";
 
         //==============================================================
