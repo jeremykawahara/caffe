@@ -104,4 +104,32 @@ TYPED_TEST(WeightedHingeLossLayerTest, TestGradientQuadraticL2) {
       this->blob_top_vec_, 0);
 }
 
+TYPED_TEST(WeightedHingeLossLayerTest, TestGradientNormalizedQuadraticL1) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+
+  WeightedHingeLossParameter* weighted_hinge_loss_param = layer_param.mutable_weighted_hinge_loss_param();
+
+  weighted_hinge_loss_param->set_weight_type(WeightedHingeLossParameter_WeightType_NORMALIZED_QUADRATIC);
+
+  WeightedHingeLossLayer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 2e-3, 1701, 1, 0.01);
+  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+      this->blob_top_vec_, 0);
+}
+
+TYPED_TEST(WeightedHingeLossLayerTest, TestGradientNormalizedQuadraticL2) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+
+  WeightedHingeLossParameter* weighted_hinge_loss_param = layer_param.mutable_weighted_hinge_loss_param();
+
+  weighted_hinge_loss_param->set_weight_type(WeightedHingeLossParameter_WeightType_NORMALIZED_QUADRATIC);
+  weighted_hinge_loss_param->set_norm(WeightedHingeLossParameter_Norm_L2);
+
+  WeightedHingeLossLayer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 2e-3, 1701, 1, 0.01);
+  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+      this->blob_top_vec_, 0);
+}
 }  // namespace caffe

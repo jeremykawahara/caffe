@@ -597,8 +597,9 @@ message WeightedHingeLossParameter {
   }
 
   enum WeightType {
-    MULTICLASS = 1;
-    QUADRATIC  = 2;
+    MULTICLASS           = 1;
+    QUADRATIC            = 2;
+    NORMALIZED_QUADRATIC = 3;
   }
 
   // Specify the Norm to use L1 or L2

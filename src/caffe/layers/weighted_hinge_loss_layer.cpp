@@ -55,6 +55,13 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
       LOG(INFO) << "Forward - Quadratic Weight: " << weight << "\n";
 #endif
           break;
+        case WeightedHingeLossParameter_WeightType_NORMALIZED_QUADRATIC:
+            weight = std::exp(std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2)) / std::exp(1);
+
+#ifdef DEBUG 
+        LOG(INFO) << "BACKWARD - Normalized Quadratic Weight: " << weight << "\n";
+#endif 
+          break;
         default:
           LOG(FATAL) << "Unknown Weight";
       }
@@ -154,6 +161,14 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
 
 #ifdef DEBUG 
         LOG(INFO) << "BACKWARD - Quadratic Weight: " << weight << "\n";
+#endif 
+            break;
+
+          case WeightedHingeLossParameter_WeightType_NORMALIZED_QUADRATIC:
+            weight = std::exp(std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2)) / std::exp(1);
+
+#ifdef DEBUG 
+        LOG(INFO) << "BACKWARD - Normalized Quadratic Weight: " << weight << "\n";
 #endif 
             break;
           default:
