@@ -52,7 +52,16 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
     }
   }
   Dtype* loss = top[0]->mutable_cpu_data();
-  loss[0] = caffe_cpu_asum(count, bottom_diff) / num;
+  switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
+  case WeightedHingeLossParameter_Norm_L1:
+    loss[0] = caffe_cpu_asum(count, bottom_diff) / num;
+    break;
+  case WeightedHingeLossParameter_Norm_L2:
+    loss[0] = caffe_cpu_dot(count, bottom_diff, bottom_diff) / num;
+    break;
+  default:
+    LOG(FATAL) << "Unknown Norm";
+  }
 }
 
 template <typename Dtype>
@@ -99,22 +108,46 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
         // Pairwise margin for each
         Dtype margin = 1 + bottom_diff[i * dim + j] - correct_activation;
 
-        if( margin > Dtype(0) )
-        {
-	      // LOG(INFO) << "bottom_diff[" << (i * dim + j) << "] = "<< weight << "\n";
-	      // LOG(INFO) << "bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
-	      //	<< ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight) << "\n";
-          bottom_diff[i * dim + j] = weight;
-          bottom_diff[i * dim +  static_cast<int>(label[i])] -= weight;
+        const Dtype loss_weight = top[0]->cpu_diff()[0];
+        switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
+          case WeightedHingeLossParameter_Norm_L1:
+
+            if( margin > Dtype(0) )
+            {
+            // LOG(INFO) << "bottom_diff[" << (i * dim + j) << "] = "<< weight << "\n";
+            // LOG(INFO) << "bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
+            //  << ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight) << "\n";
+              bottom_diff[i * dim + j] = weight;
+              bottom_diff[i * dim +  static_cast<int>(label[i])] -= weight;
+            }
+            else
+              bottom_diff[i * dim + j] = Dtype(0);
+          
+            caffe_scal(count, loss_weight / num, bottom_diff);
+          
+            break;
+          case WeightedHingeLossParameter_Norm_L2:
+
+            if( margin > Dtype(0) )
+            {
+            // LOG(INFO) << "bottom_diff[" << (i * dim + j) << "] = "<< weight << "\n";
+            // LOG(INFO) << "bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
+            //  << ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight) << "\n";
+              bottom_diff[i * dim + j] *= weight;
+              bottom_diff[i * dim +  static_cast<int>(label[i])] -= weight*correct_activation;
+            }
+            else
+              bottom_diff[i * dim + j] = Dtype(0);
+
+            caffe_scal(count, loss_weight * 2 / num, bottom_diff);
+            break;
+          default:
+            LOG(FATAL) << "Unknown Norm";
         }
-        else
-          bottom_diff[i * dim + j] = Dtype(0);
 
       }
     }
 
-    const Dtype loss_weight = top[0]->cpu_diff()[0];
-    caffe_scal(count, loss_weight / num, bottom_diff);
   }
 }
 
