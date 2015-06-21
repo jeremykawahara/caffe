@@ -352,7 +352,8 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional WindowDataParameter window_data_param = 129;
 
-  optional WeightedHingeLossParameter weighted_hinge_loss_param = 137;
+  optional MulticlassHingeLossParameter multiclass_hinge_loss_param = 137;
+  optional WeightedHingeLossParameter weighted_hinge_loss_param = 138;
 
 }
 
@@ -595,16 +596,18 @@ message WeightedHingeLossParameter {
     L1 = 1;
     L2 = 2;
   }
+  // Specify the Norm to use L1 or L2
+  optional Norm norm = 1 [default = L1]; 
+}
 
-  enum WeightType {
-    MULTICLASS           = 1;
-    QUADRATIC            = 2;
-    NORMALIZED_QUADRATIC = 3;
+message MulticlassHingeLossParameter {
+  enum Norm {
+    L1 = 1;
+    L2 = 2;
   }
 
   // Specify the Norm to use L1 or L2
   optional Norm       norm        = 1 [default = L1];
-  optional WeightType weight_type = 2 [default = MULTICLASS];
 }
 
 

@@ -8,16 +8,10 @@
 #include "caffe/util/math_functions.hpp"
 #include "caffe/vision_layers.hpp"
 
-#ifdef DEBUG
-
-#undef DEBUG
-
-#endif
-
 namespace caffe {
 
 template <typename Dtype>
-void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+void MulticlassHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
@@ -36,50 +30,27 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
     bottom_diff[i * dim + static_cast<int>(label[i])] = 0;
     
     for (int j = 0; j < dim; ++j) {
-      // Pairwise ranking weight
-
-      Dtype weight = std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2);
+      if( j == static_cast<int>(label[i]) ) continue;
 
       // Pairwise margin for each 
       Dtype margin = 1.0 + bottom_diff[i * dim + j] - correct_activation;
 
-      switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
-        case WeightedHingeLossParameter_Norm_L1:{
-          bottom_diff[i * dim + j] = std::max(Dtype(0), margin) * weight;
-
-    #ifdef DEBUG 
-            LOG(INFO) << "L1_bottom_diff[" << i * dim + j << "] = " << bottom_diff[i * dim + j] << "\n";
-    #endif 
-
-          break;
-        }
-        case WeightedHingeLossParameter_Norm_L2:{
-          bottom_diff[i * dim + j] = std::pow(std::max(Dtype(0), margin),2) * weight;
-
-    #ifdef DEBUG 
-            LOG(INFO) << "L2_bottom_diff[" << i * dim + j << "] = " << bottom_diff[i * dim + j] << "\n";
-    #endif       
-          break;
-        }
-        default:
-          LOG(FATAL) << "Unknown Norm";
-      }
+      bottom_diff[i * dim + j] = std::max(Dtype(0), margin);
     }
   }
 
   Dtype* loss = top[0]->mutable_cpu_data();
   switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
-    case WeightedHingeLossParameter_Norm_L1:{
+    case MulticlassHingeLossParameter_Norm_L1:{
       loss[0] = caffe_cpu_asum(count, bottom_diff) / num;
 
 #ifdef DEBUG 
         LOG(INFO) << "L1_loss = " << loss[0] << "\n";
 #endif 
-
       break;
     }
-    case WeightedHingeLossParameter_Norm_L2:{
-      loss[0] = caffe_cpu_asum(count, bottom_diff) / num;
+    case MulticlassHingeLossParameter_Norm_L2:{
+      loss[0] = caffe_cpu_dot(count, bottom_diff, bottom_diff) / num;
 
 #ifdef DEBUG 
         LOG(INFO) << "L2_loss = " << loss[0] << "\n";
@@ -92,7 +63,7 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
 }
 
 template <typename Dtype>
-void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
+void MulticlassHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   if (propagate_down[1]) {
     LOG(FATAL) << this->type()
@@ -116,42 +87,29 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
 
       for (int j = 0; j < dim; ++j) 
       {
-        //==============================================================
-        // Pairwise ranking weight
-        Dtype weight = std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2);
+        if( j == static_cast<int>(label[i]) ) continue;
 
         //==============================================================
         // Pairwise margin for each
         Dtype margin = 1.0 + bottom_diff[i * dim + j] - correct_activation;
 
         switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
-          case WeightedHingeLossParameter_Norm_L1:{
+          case MulticlassHingeLossParameter_Norm_L1:{
             if( margin > Dtype(0) )
             {
-
-#ifdef DEBUG 
-            LOG(INFO) << "L1_bottom_diff[" << (i * dim + j) << "] = "<< weight << "\n";
-            LOG(INFO) << "L1_bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
-             << ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight) << "\n";
-#endif
-              bottom_diff[i * dim + j] = weight;
-              bottom_diff[i * dim +  static_cast<int>(label[i])] -= weight;
+              bottom_diff[i * dim + j] = 1.0;
+              bottom_diff[i * dim +  static_cast<int>(label[i])] -= 1.0;
             }
             else
               bottom_diff[i * dim + j] = Dtype(0);          
             break;
           }
-          case WeightedHingeLossParameter_Norm_L2:
+          case MulticlassHingeLossParameter_Norm_L2:
           {
             if( margin > Dtype(0) )
             {
-#ifdef DEBUG
-            LOG(INFO) << "L2_bottom_diff[" << (i * dim + j) << "] = "<< weight*margin << "\n";
-            LOG(INFO) << "L2_bottom_diff[" << (i * dim + static_cast<int>(label[i])) << "] = " 
-             << ( bottom_diff[i * dim +  static_cast<int>(label[i])] - weight*margin) << "\n";
-#endif
-              bottom_diff[i * dim + j] = 2 * weight * margin;
-              bottom_diff[i * dim +  static_cast<int>(label[i])] -= 2 * weight * margin;
+              bottom_diff[i * dim + j] = margin;
+              bottom_diff[i * dim +  static_cast<int>(label[i])] -= margin;
             }
             else
               bottom_diff[i * dim + j] = Dtype(0);
@@ -166,24 +124,23 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
 
     // Finally normalize the backwarded gradient 
     switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
-      case WeightedHingeLossParameter_Norm_L1:
+      case MulticlassHingeLossParameter_Norm_L1:
       {
         const Dtype loss_weight = top[0]->cpu_diff()[0];
         caffe_scal(count, loss_weight / num, bottom_diff);
         break;
       }
-      case WeightedHingeLossParameter_Norm_L2:
+      case MulticlassHingeLossParameter_Norm_L2:
       {
         const Dtype loss_weight = top[0]->cpu_diff()[0];
-        caffe_scal(count, loss_weight *2 / num, bottom_diff);
+        caffe_scal(count, loss_weight * 2 / num, bottom_diff);
         break;
       }
     }
   }
 }
 
-INSTANTIATE_CLASS(WeightedHingeLossLayer);
-REGISTER_LAYER_CLASS(WeightedHingeLoss);
+INSTANTIATE_CLASS(MulticlassHingeLossLayer);
+REGISTER_LAYER_CLASS(MulticlassHingeLoss);
 
 } // namespace caffe
-#define DEBUG
