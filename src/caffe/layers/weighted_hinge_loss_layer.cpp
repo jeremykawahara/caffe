@@ -110,8 +110,8 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
             if( margin > Dtype(0) )
             {
               bottom_diff[i * dim + j] = ( j == static_cast<int>(label[i]) )? 
-              (  2 * weight * margin): 
-              (- 2 * weight * margin);
+              (  weight * margin): 
+              (- weight * margin);
             }
             else
               bottom_diff[i * dim + j] = Dtype(0);
@@ -135,7 +135,7 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
       case WeightedHingeLossParameter_Norm_L2:
       {
         const Dtype loss_weight = top[0]->cpu_diff()[0];
-        caffe_scal(count, loss_weight *2 / num, bottom_diff);
+        caffe_scal(count, loss_weight * 2 / num, bottom_diff);
         break;
       }
     }
