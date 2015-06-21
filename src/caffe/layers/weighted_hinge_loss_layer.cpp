@@ -8,12 +8,6 @@
 #include "caffe/util/math_functions.hpp"
 #include "caffe/vision_layers.hpp"
 
-#ifdef DEBUG
-
-#undef DEBUG
-
-#endif
-
 namespace caffe {
 
 template <typename Dtype>
@@ -30,8 +24,6 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
   caffe_copy(count, bottom_data, bottom_diff);
 
   for (int i = 0; i < num; ++i) {
-    //==============================================================
-    // Cache corect_activation for this sample
     for (int j = 0; j < dim; ++j) {
       // Label-wise ranking weight
       Dtype weight = std::exp( std::pow(static_cast<int>(label[i]) - j, 2) / std::pow(dim - 1, 2) );
@@ -89,11 +81,6 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
     caffe_copy(count, bottom_data, bottom_diff);
 
     for (int i = 0; i < num; ++i) {
-      //==============================================================
-      // Cache corect_activation for this sample
-      Dtype correct_activation = bottom_diff[i * dim + static_cast<int>(label[i])];
-      bottom_diff[i * dim + static_cast<int>(label[i])] = 0;
-
       for (int j = 0; j < dim; ++j) 
       {
         //==============================================================
@@ -157,4 +144,3 @@ INSTANTIATE_CLASS(WeightedHingeLossLayer);
 REGISTER_LAYER_CLASS(WeightedHingeLoss);
 
 } // namespace caffe
-#define DEBUG
