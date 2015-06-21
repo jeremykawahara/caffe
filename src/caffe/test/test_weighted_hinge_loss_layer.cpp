@@ -65,7 +65,7 @@ TYPED_TEST(WeightedHingeLossLayerTest, TestGradientWeightedL2) {
   typedef typename TypeParam::Dtype Dtype;
   LayerParameter layer_param;
 
-  WeightedHingeLossParameter* weighted_hinge_loss_param = layer_param.mutable_multiclass_hinge_loss_param();
+  WeightedHingeLossParameter* weighted_hinge_loss_param = layer_param.mutable_weighted_hinge_loss_param();
   
   weighted_hinge_loss_param->set_norm(WeightedHingeLossParameter_Norm_L2);
   WeightedHingeLossLayer<Dtype> layer(layer_param);
