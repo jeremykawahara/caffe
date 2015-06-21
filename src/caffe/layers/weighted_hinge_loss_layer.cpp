@@ -110,7 +110,7 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
             if( margin > Dtype(0) )
             {
               bottom_diff[i * dim + j] = ( j == static_cast<int>(label[i]) )? 
-              (+ weight * margin): 
+              (- weight * margin): 
               (  weight * margin);
             }
             else
