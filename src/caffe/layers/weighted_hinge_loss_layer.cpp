@@ -30,8 +30,8 @@ void WeightedHingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bott
 
       // Label-wise margin for each
       Dtype margin = ( j == static_cast<int>(label[i]) ) ? 
-          1.0 + bottom_diff[i * dim + j]: 
-          1.0 - bottom_diff[i * dim + j];
+          ( 1.0 + bottom_diff[i * dim + j] ): 
+          ( 1.0 - bottom_diff[i * dim + j] );
 
       switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
         case WeightedHingeLossParameter_Norm_L1:{
@@ -90,15 +90,16 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
         //==============================================================
         // Label-wise margin for each
         Dtype margin = ( j == static_cast<int>(label[i]) )? 
-          1.0 + bottom_diff[i * dim + j]:
-          1.0 - bottom_diff[i * dim + j];
+          ( 1.0 + bottom_diff[i * dim + j] ):
+          ( 1.0 - bottom_diff[i * dim + j] );
 
         switch (this->layer_param_.weighted_hinge_loss_param().norm()) {
           case WeightedHingeLossParameter_Norm_L1:{
             if( margin > Dtype(0) )
             {
-              bottom_diff[i * dim + j] = weight;
-              bottom_diff[i * dim +  static_cast<int>(label[i])] -= weight;
+              bottom_diff[i * dim + j] = ( j == static_cast<int>(label[i]) )? 
+                (  weight): 
+                (- weight);
             }
             else
               bottom_diff[i * dim + j] = Dtype(0);          
@@ -108,8 +109,9 @@ void WeightedHingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
           {
             if( margin > Dtype(0) )
             {
-              bottom_diff[i * dim + j] = 2 * weight * margin;
-              bottom_diff[i * dim + static_cast<int>(label[i])] -= 2 * weight * margin;
+              bottom_diff[i * dim + j] = ( j == static_cast<int>(label[i]) )? 
+              (  2 * weight * margin): 
+              (- 2 * weight * margin);
             }
             else
               bottom_diff[i * dim + j] = Dtype(0);
